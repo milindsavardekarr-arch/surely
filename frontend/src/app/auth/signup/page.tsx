@@ -8,7 +8,7 @@ import { Mail, Phone, User, Building2, ChevronDown, Send, CheckCircle } from 'lu
 
 const defaultForm = { name: '', email: '', phone: '', companyName: '', industry: '' };
 
-const PHP_ENDPOINT = 'https://surely.co.in/submit_signup_request.php';
+const PHP_ENDPOINT = 'https://surely.co.in/admin/submit_signup_request';
 
 export default function SignupPage() {
   const [form, setForm] = useState(defaultForm);
