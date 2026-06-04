@@ -1,0 +1,235 @@
+generator client {
+  provider = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id               String            @id @default(uuid())
+  email            String            @unique
+  password         String
+  name             String
+  isActive         Boolean           @default(true)
+  onboardedBy      String?           // "php_admin" | "self_signup"
+  phpUserId        String?           // PHP admin user ID reference
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  businessAccounts BusinessAccount[]
+}
+
+model BusinessAccount {
+  id                String             @id @default(uuid())
+  userId            String
+  user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name              String
+  industry          String?
+  phone             String?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  whatsappSessions  WhatsappSession[]
+  contacts          Contact[]
+  statuses          Status[]
+  aiReplies         AiReply[]
+  engagementLogs    EngagementLog[]
+  settings          BusinessSettings?
+  whatsAppApiSettings WhatsAppApiSettings?
+  automationRules   AutomationRule[]
+}
+
+model WhatsappSession {
+  id                String          @id @default(uuid())
+  businessAccountId String
+  businessAccount   BusinessAccount @relation(fields: [businessAccountId], references: [id], onDelete: Cascade)
+  sessionId         String          @unique
+  encryptedSession  String?         @db.Text
+  status            SessionStatus   @default(DISCONNECTED)
+  phoneNumber       String?
+  profileName       String?
+  lastConnectedAt   DateTime?
+  lastDisconnectedAt DateTime?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+}
+
+enum SessionStatus {
+  CONNECTING
+  CONNECTED
+  DISCONNECTED
+  QR_PENDING
+  FAILED
+}
+
+model Contact {
+  id                String          @id @default(uuid())
+  businessAccountId String
+  businessAccount   BusinessAccount @relation(fields: [businessAccountId], references: [id], onDelete: Cascade)
+  name              String
+  mobile            String
+  tags              String[]        @default([])
+  leadStage         LeadStage       @default(LEAD)
+  city              String?
+  notes             String?         @db.Text
+  email             String?
+  birthday          DateTime?
+  anniversary       DateTime?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  statuses          Status[]
+  aiReplies         AiReply[]
+  engagementLogs    EngagementLog[]
+
+  @@unique([businessAccountId, mobile])
+}
+
+enum LeadStage {
+  LEAD
+  PROSPECT
+  QUALIFIED
+  CUSTOMER
+  CHURNED
+  VIP
+}
+
+model Status {
+  id                String          @id @default(uuid())
+  businessAccountId String
+  businessAccount   BusinessAccount @relation(fields: [businessAccountId], references: [id], onDelete: Cascade)
+  contactId         String?
+  contact           Contact?        @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  contactName       String
+  contactMobile     String
+  statusText        String          @db.Text
+  statusType        String          @default("text")
+  statusImageUrl    String?
+  timestamp         DateTime
+  detectedEvent     EventType?
+  keywords          String[]        @default([])
+  processed         Boolean         @default(false)
+  createdAt         DateTime        @default(now())
+  aiReplies         AiReply[]
+
+  @@unique([contactMobile, timestamp, businessAccountId])
+}
+
+enum EventType {
+  BIRTHDAY
+  ANNIVERSARY
+  ACHIEVEMENT
+  FESTIVAL
+  SAD_EMOTION
+  POSITIVE
+  OTHER
+}
+
+model AiReply {
+  id                String          @id @default(uuid())
+  businessAccountId String
+  businessAccount   BusinessAccount @relation(fields: [businessAccountId], references: [id], onDelete: Cascade)
+  statusId          String
+  status            Status          @relation(fields: [statusId], references: [id], onDelete: Cascade)
+  contactId         String?
+  contact           Contact?        @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  generatedText     String          @db.Text
+  editedText        String?         @db.Text
+  approvalStatus    ApprovalStatus  @default(PENDING)
+  sentAt            DateTime?
+  sendError         String?
+  model             String          @default("gpt-4o-mini")
+  tokensUsed        Int?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  engagementLogs    EngagementLog[]
+}
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  SENT
+  FAILED
+}
+
+model EngagementLog {
+  id                String          @id @default(uuid())
+  businessAccountId String
+  businessAccount   BusinessAccount @relation(fields: [businessAccountId], references: [id], onDelete: Cascade)
+  contactId         String?
+  contact           Contact?        @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  aiReplyId         String?
+  aiReply           AiReply?        @relation(fields: [aiReplyId], references: [id], onDelete: SetNull)
+  action            EngagementAction
+  metadata          Json?
+  createdAt         DateTime        @default(now())
+}
+
+enum EngagementAction {
+  STATUS_DETECTED
+  AI_GENERATED
+  REPLY_APPROVED
+  REPLY_EDITED
+  REPLY_REJECTED
+  REPLY_SENT
+  REPLY_FAILED
+
+  WHATSAPP_SETTINGS_UPDATED
+  WHATSAPP_CREDENTIALS_TESTED
+  WHATSAPP_TEST_MESSAGE_SENT
+}
+
+model BusinessSettings {
+  id                    String          @id @default(uuid())
+  businessAccountId     String          @unique
+  businessAccount       BusinessAccount @relation(fields: [businessAccountId], references: [id], onDelete: Cascade)
+  autoReplyEnabled      Boolean         @default(false)
+  approvalRequired      Boolean         @default(true)
+  sendDelayMinutes      Int             @default(5)
+  workingHoursEnabled   Boolean         @default(false)
+  workingHoursStart     String          @default("09:00")
+  workingHoursEnd       String          @default("21:00")
+  maxRepliesPerDay      Int             @default(50)
+  rateLimitEnabled      Boolean         @default(true)
+  spamProtection        Boolean         @default(true)
+  consentRequired       Boolean         @default(false)
+  notifyOnDetection     Boolean         @default(true)
+  notifyOnApproval      Boolean         @default(true)
+  createdAt             DateTime        @default(now())
+  updatedAt             DateTime        @updatedAt
+}
+
+model WhatsAppApiSettings {
+  id                     String          @id @default(uuid())
+  businessAccountId      String          @unique
+  businessAccount        BusinessAccount @relation(fields: [businessAccountId], references: [id], onDelete: Cascade)
+  accessTokenEncrypted   String?         @db.Text
+  phoneNumberId          String?
+  wabaId                 String?
+  verifyToken            String?
+  webhookCallbackUrl     String?
+  isEnabled              Boolean         @default(false)
+  isTestMode             Boolean         @default(false)
+  allowedTestNumbers     String?
+  defaultTemplateName    String?         @default("hello_world")
+  defaultTemplateLanguage String?        @default("en_US")
+  createdAt              DateTime        @default(now())
+  updatedAt              DateTime        @updatedAt
+}
+
+model AutomationRule {
+  id               String          @id @default(uuid())
+  businessAccountId String
+  businessAccount  BusinessAccount @relation(fields: [businessAccountId], references: [id], onDelete: Cascade)
+  name             String
+  eventType        String
+  template         String          @db.Text
+  autoSend         Boolean         @default(false)
+  delayMinutes     Int             @default(5)
+  couponCode       String?
+  discountPercent  Int             @default(0)
+  isActive         Boolean         @default(true)
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+}
