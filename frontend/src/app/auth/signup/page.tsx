@@ -8,10 +8,7 @@ import { Mail, Phone, User, Building2, ChevronDown, Send, CheckCircle } from 'lu
 
 const defaultForm = { name: '', email: '', phone: '', companyName: '', industry: '' };
 
-// ⚠️  Apna PHP site ka URL yahan daalo
-const PHP_ENDPOINT = process.env.NEXT_PUBLIC_PHP_SITE_URL
-  ? `${process.env.NEXT_PUBLIC_PHP_SITE_URL}/submit_signup_request.php`
-  : 'http://localhost:8080/submit_signup_request.php';
+const PHP_ENDPOINT = 'https://surely.co.in/submit_signup_request.php';
 
 export default function SignupPage() {
   const [form, setForm] = useState(defaultForm);
@@ -22,7 +19,7 @@ export default function SignupPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.phone.trim()) { toast.error('Mobile number required hai'); return; }
+    if (!form.phone.trim()) { toast.error('Mobile number is required'); return; }
     setLoading(true);
     try {
       const res = await fetch(PHP_ENDPOINT, {
@@ -37,7 +34,7 @@ export default function SignupPage() {
         toast.error(data.message || 'Request failed. Please try again.');
       }
     } catch {
-      toast.error('Server se connect nahi hua. Please try again.');
+      toast.error('Could not connect to server. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -62,26 +59,26 @@ export default function SignupPage() {
 
         <div className="card" style={{ padding: '2rem' }}>
           {submitted ? (
-            /* ── Success State ── */
+            /* Success State */
             <div style={{ textAlign: 'center', padding: '1rem 0' }}>
               <CheckCircle size={48} color="#25D366" style={{ margin: '0 auto 1rem' }} />
               <h2 style={{ color: '#f4f4f5', fontSize: '1.1rem', fontWeight: 700, marginBottom: '0.5rem' }}>
-                Request Submit Ho Gayi!
+                Request Submitted!
               </h2>
               <p style={{ color: '#a1a1aa', fontSize: '0.875rem', lineHeight: 1.6 }}>
-                Humari team 24 ghante mein aapki request review karegi aur access de degi.
+                Our team will review your request within 24 hours and grant you access.
               </p>
               <p style={{ color: '#52525b', fontSize: '0.8rem', marginTop: '1rem' }}>
-                Confirmation <strong style={{ color: '#a1a1aa' }}>{form.email}</strong> pe bheja jayega.
+                A confirmation will be sent to <strong style={{ color: '#a1a1aa' }}>{form.email}</strong>.
               </p>
             </div>
           ) : (
-            /* ── Request Form ── */
+            /* Request Form */
             <>
               <div style={{ marginBottom: '1.25rem' }}>
-                <h2 style={{ color: '#f4f4f5', fontSize: '1rem', fontWeight: 700 }}>Access Request Karein</h2>
+                <h2 style={{ color: '#f4f4f5', fontSize: '1rem', fontWeight: 700 }}>Request Access</h2>
                 <p style={{ color: '#71717a', fontSize: '0.8rem', marginTop: '0.25rem' }}>
-                  Form bhar ke submit karein — hum 24 ghante mein approve karenge.
+                  Fill in the form below — we will approve your account within 24 hours.
                 </p>
               </div>
 
@@ -90,7 +87,7 @@ export default function SignupPage() {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
                   <div>
                     <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 500, color: '#a1a1aa', marginBottom: '0.375rem' }}>
-                      Aapka Naam *
+                      Your Name *
                     </label>
                     <div style={{ position: 'relative' }}>
                       <User size={14} color="#8b8b94" style={{ position: 'absolute', left: '0.875rem', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} />
