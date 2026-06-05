@@ -24,10 +24,17 @@ export const authenticate = async (
 
     const user = await prisma.user.findUnique({
       where: { id: payload.userId },
-      select: { id: true, email: true },
+      select: { id: true, email: true, plan: true, planExpiresAt: true },
     });
 
     if (!user) throw new AppError('User not found', 401);
+
+    // ── Plan expiry check ─────────────────────────────────────────────────────
+    if (user.planExpiresAt && new Date() > new Date(user.planExpiresAt)) {
+      next(new AppError('PLAN_EXPIRED', 403));
+      return;
+    }
+    // ─────────────────────────────────────────────────────────────────────────
 
     req.user = payload;
     next();
@@ -48,7 +55,6 @@ export const requireBusinessAccount = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    // Try all sources: query param, body, then JWT payload
     const businessAccountId =
       (req.query.businessAccountId as string) ||
       req.body?.businessAccountId ||
@@ -58,7 +64,6 @@ export const requireBusinessAccount = async (
       throw new AppError('Business account ID required', 400);
     }
 
-    // Verify the user owns this account
     const account = await prisma.businessAccount.findFirst({
       where: {
         id: businessAccountId,

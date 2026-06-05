@@ -1,6 +1,5 @@
 import axios from 'axios';
 
-// Try 4000 first, fallback handled by env var
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
 export const api = axios.create({
@@ -30,9 +29,10 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (!error.response) {
-      // Network error — backend not reachable
       console.error(`❌ Backend unreachable at ${API_URL} — is it running?`);
     }
+
+    // 401 — token invalid/expired → go to login
     if (error.response?.status === 401) {
       if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/auth')) {
         try {
@@ -43,6 +43,17 @@ api.interceptors.response.use(
         window.location.href = '/auth/login';
       }
     }
+
+    // 403 PLAN_EXPIRED — redirect to locked screen
+    if (error.response?.status === 403) {
+      const msg = error.response?.data?.message || '';
+      if (msg === 'PLAN_EXPIRED' && typeof window !== 'undefined') {
+        if (!window.location.pathname.startsWith('/plan-expired')) {
+          window.location.href = '/plan-expired';
+        }
+      }
+    }
+
     return Promise.reject(error);
   }
 );
