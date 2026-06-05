@@ -24,17 +24,22 @@ export const authenticate = async (
 
     const user = await prisma.user.findUnique({
       where: { id: payload.userId },
-      select: { id: true, email: true, plan: true, planExpiresAt: true },
+      select: { id: true, email: true, isActive: true, plan: true, planExpiresAt: true },
     });
 
     if (!user) throw new AppError('User not found', 401);
 
-    // ── Plan expiry check ─────────────────────────────────────────────────────
+    // ── Inactive check (PHP admin ne disable kiya) ────────────────────────
+    if (!user.isActive) {
+      next(new AppError('ACCOUNT_INACTIVE', 403));
+      return;
+    }
+
+    // ── Plan expiry check ─────────────────────────────────────────────────
     if (user.planExpiresAt && new Date() > new Date(user.planExpiresAt)) {
       next(new AppError('PLAN_EXPIRED', 403));
       return;
     }
-    // ─────────────────────────────────────────────────────────────────────────
 
     req.user = payload;
     next();
