@@ -81,9 +81,11 @@ model Contact {
   anniversary       DateTime?
   createdAt         DateTime        @default(now())
   updatedAt         DateTime        @updatedAt
+
   statuses          Status[]
   aiReplies         AiReply[]
   engagementLogs    EngagementLog[]
+  incomingMessages  IncomingMessage[]
 
   @@unique([businessAccountId, mobile])
 }
