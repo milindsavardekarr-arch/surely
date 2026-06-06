@@ -180,6 +180,19 @@ router.patch('/users/:id/status', async (req: Request, res: Response, next: Next
   } catch (err) { next(err); }
 });
 
+// ── PATCH /admin-api/users/:id/password ─────────────────────────────────────
+router.patch('/users/:id/password', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { password } = z.object({ password: z.string().min(6) }).parse(req.body);
+    const hashed = await hashPassword(password);
+    await prisma.user.update({
+      where: { id: req.params.id },
+      data:  { password: hashed },
+    });
+    res.json({ success: true, message: 'Password updated' });
+  } catch (err) { next(err); }
+});
+
 // ── DELETE /admin-api/users/:id — Delete user ────────────────────────────────
 router.delete('/users/:id', async (req: Request, res: Response, next: NextFunction) => {
   try {
