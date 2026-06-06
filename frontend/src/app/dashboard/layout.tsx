@@ -8,7 +8,7 @@ import {
   LayoutDashboard, Users, Smartphone,
   Activity, MessageSquare, BarChart3, LogOut,
   ChevronDown, ChevronRight, Settings, Zap, Ticket,
-  SlidersHorizontal, MessageCircle,
+  SlidersHorizontal, MessageCircle, MessagesSquare,
 } from 'lucide-react';
 import { useAuthStore } from '@/lib/store';
 import { setAuthToken } from '@/lib/api';
@@ -20,6 +20,7 @@ const NAV_ITEMS = [
   { href: '/dashboard/contacts',  label: 'CRM Contacts',     icon: Users },
   { href: '/dashboard/statuses',  label: 'Status Monitor',   icon: Activity,        badge: 'LIVE' },
   { href: '/dashboard/replies',   label: 'AI Replies',       icon: MessageSquare,   badge: 'INBOX' },
+  { href: '/dashboard/conversations', label: 'Conversations',    icon: MessagesSquare,  badge: 'UNREAD' },
   { href: '/dashboard/analytics', label: 'Analytics',        icon: BarChart3 },
 ];
 

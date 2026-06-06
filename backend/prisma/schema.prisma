@@ -40,6 +40,7 @@ model BusinessAccount {
   settings          BusinessSettings?
   whatsAppApiSettings WhatsAppApiSettings?
   automationRules   AutomationRule[]
+  incomingMessages  IncomingMessage[]
 }
 
 model WhatsappSession {
@@ -234,4 +235,21 @@ model AutomationRule {
   isActive         Boolean         @default(true)
   createdAt        DateTime        @default(now())
   updatedAt        DateTime        @updatedAt
+}
+
+model IncomingMessage {
+  id                String          @id @default(uuid())
+  businessAccountId String
+  businessAccount   BusinessAccount @relation(fields: [businessAccountId], references: [id], onDelete: Cascade)
+  contactId         String?
+  contact           Contact?        @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  fromMobile        String
+  fromName          String
+  messageText       String          @db.Text
+  messageType       String          @default("text")
+  waMessageId       String?
+  source            String          @default("baileys")
+  isRead            Boolean         @default(false)
+  receivedAt        DateTime        @default(now())
+  createdAt         DateTime        @default(now())
 }

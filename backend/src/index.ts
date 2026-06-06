@@ -23,6 +23,7 @@ import replyRoutes from './routes/replies.routes';
 import analyticsRoutes from './routes/analytics.routes';
 import webhookRoutes from './routes/webhooks.routes';
 import automationRoutes from './routes/automation.routes';
+import conversationRoutes from './routes/conversations.routes';
 
 import { initWorkers } from './queues/workers';
 import prisma from './config/database';
@@ -95,6 +96,7 @@ app.use('/api/replies', replyRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/webhooks', webhookRoutes);
 app.use('/api/automation', automationRoutes);
+app.use('/api/conversations', conversationRoutes);
 
 app.use((_req, _res, next) => next(new AppError('Route not found', 404)));
 app.use(errorHandler);
