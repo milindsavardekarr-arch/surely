@@ -54,7 +54,7 @@ services:
       GROQ_API_KEY: ${GROQ_API_KEY:-}
       VISION_MODEL: ${VISION_MODEL:-meta-llama/llama-4-scout-17b-16e-instruct}
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
-      ADMIN_API_KEY: ${ADMIN_API_KEY:-change-this-secure-admin-key-123}
+      ADMIN_API_KEY: ${ADMIN_API_KEY=SurelyAdmin@2024#SecretKey}
       WA_HEADLESS: "true"
       # Meta WhatsApp Cloud API
       WHATSAPP_ACCESS_TOKEN: ${WHATSAPP_ACCESS_TOKEN:-}
