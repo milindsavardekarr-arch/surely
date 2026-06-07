@@ -13,10 +13,19 @@ import { Response, NextFunction } from 'express';
 const router = Router();
 router.use(authenticate, requireBusinessAccount);
 
-// Normalize mobile to last 10 digits
+// Normalize mobile to last 10 digits (for DB matching)
 function normMobile(mobile: string): string {
   const digits = mobile.replace(/\D/g, '');
   return digits.slice(-10);
+}
+
+// Full number for sending (with country code)
+function fullMobile(mobile: string): string {
+  const digits = mobile.replace(/\D/g, '');
+  const last10 = digits.slice(-10);
+  // Add India country code if not present
+  if (digits.length <= 10) return '91' + last10;
+  return digits;
 }
 
 // ── GET /conversations ──────────────────────────────────────────────────────
@@ -24,7 +33,6 @@ router.get('/', async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const baId = req.businessAccountId!;
 
-    // Get all messages, normalize to last 10 digits for grouping
     const rows = await prisma.$queryRawUnsafe<Array<{
       normMobile: string;
       fromName:   string;
@@ -36,7 +44,7 @@ router.get('/', async (req: AuthRequest, res: Response, next: NextFunction) => {
     }>>(`
       SELECT
         RIGHT(REGEXP_REPLACE(im."fromMobile", '[^0-9]', '', 'g'), 10) AS "normMobile",
-        (ARRAY_AGG(im."fromName" ORDER BY im."receivedAt" DESC))[1] AS "fromName",
+        (ARRAY_AGG(im."fromName" ORDER BY (CASE WHEN im."fromName" ~ '^[0-9]+$' THEN 1 ELSE 0 END), im."receivedAt" DESC))[1] AS "fromName",
         (ARRAY_AGG(im."contactId") FILTER (WHERE im."contactId" IS NOT NULL))[1] AS "contactId",
         (ARRAY_AGG(im."messageText" ORDER BY im."receivedAt" DESC))[1] AS "lastText",
         MAX(im."receivedAt") AS "lastTime",
@@ -57,14 +65,13 @@ router.get('/', async (req: AuthRequest, res: Response, next: NextFunction) => {
       : [];
     const contactMap = Object.fromEntries(contacts.map(c => [c.id, c]));
 
-    // Also try to match contacts by mobile if no contactId
     const allContacts = await prisma.contact.findMany({
       where:  { businessAccountId: baId },
       select: { id: true, name: true, leadStage: true, mobile: true },
     });
 
     const result = rows.map(r => {
-      const linked = r.contactId ? contactMap[r.contactId] : null;
+      const linked   = r.contactId ? contactMap[r.contactId] : null;
       const byMobile = !linked ? allContacts.find(c => normMobile(c.mobile || '') === r.normMobile) : null;
       const contact  = linked || byMobile;
 
@@ -87,12 +94,10 @@ router.get('/', async (req: AuthRequest, res: Response, next: NextFunction) => {
 // ── GET /conversations/:mobile ──────────────────────────────────────────────
 router.get('/:mobile', async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
-    const baId      = req.businessAccountId!;
-    const rawMobile = req.params.mobile;
-    const norm      = normMobile(rawMobile);
-    const limit     = 50;
+    const baId  = req.businessAccountId!;
+    const norm  = normMobile(req.params.mobile);
+    const limit = 50;
 
-    // Match by last 10 digits
     const incoming = await prisma.$queryRawUnsafe<Array<{
       id: string; messageText: string; messageType: string;
       isRead: boolean; source: string; receivedAt: Date;
@@ -106,10 +111,7 @@ router.get('/:mobile', async (req: AuthRequest, res: Response, next: NextFunctio
     `, baId, norm, limit);
 
     const contact = await prisma.contact.findFirst({
-      where: {
-        businessAccountId: baId,
-        mobile: { contains: norm },
-      },
+      where: { businessAccountId: baId, mobile: { contains: norm } },
     });
 
     const sent = contact ? await prisma.aiReply.findMany({
@@ -140,7 +142,6 @@ router.get('/:mobile', async (req: AuthRequest, res: Response, next: NextFunctio
       })),
     ].sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime());
 
-    // Mark as read
     await prisma.$executeRawUnsafe(`
       UPDATE "IncomingMessage"
       SET "isRead" = true
@@ -166,13 +167,15 @@ router.post('/:mobile/send', async (req: AuthRequest, res: Response, next: NextF
   try {
     const baId   = req.businessAccountId!;
     const norm   = normMobile(req.params.mobile);
+    const full   = fullMobile(req.params.mobile); // full number with country code for sending
     const { text } = req.body;
+
     if (!text?.trim()) {
       res.status(400).json({ success: false, error: { message: 'text is required' } });
       return;
     }
 
-    const result = await sendWhatsAppMessage(baId, norm, text.trim());
+    const result = await sendWhatsAppMessage(baId, full, text.trim());
     if (!result.sent) {
       res.status(400).json({ success: false, error: { message: result.error || 'Send failed' } });
       return;
@@ -201,7 +204,7 @@ router.post('/:mobile/send', async (req: AuthRequest, res: Response, next: NextF
       });
     }
 
-    logger.info(`[Conversations] Sent to ${norm} via ${result.method}`);
+    logger.info(`[Conversations] Sent to ${full} via ${result.method}`);
     res.json({ success: true, data: { method: result.method, messageId: result.messageId } });
   } catch (err) { next(err); }
 });
