@@ -329,51 +329,6 @@ class WhatsAppSessionManager {
             mimeType,
             timestamp: new Date(Number(msg.messageTimestamp || 0) * 1000 || Date.now()),
           });
-
-          // ── Save status REPLY as incoming message ─────────────────────
-          if (!msg.key?.fromMe) {
-            const replyText = msg.message?.extendedTextMessage?.text || msg.message?.conversation || extracted.text;
-            const realMobile = normalizeMobile(digits);
-            if (replyText && realMobile) {
-              try {
-                const dbSess = await prisma.whatsappSession.findMany({
-                  where: { sessionId }, select: { businessAccountId: true },
-                });
-                const baId = dbSess[0]?.businessAccountId;
-                if (baId) {
-                  const waId = msg.key?.id || null;
-                  const dup = waId ? await prisma.incomingMessage.findFirst({ where: { waMessageId: waId } }) : null;
-                  if (!dup) {
-                    const { v4: uuid } = await import('uuid');
-                    const contactJid2 = `${digits}@s.whatsapp.net`;
-                    const ct = store.contacts?.[contactJid2] as { name?: string; notify?: string } | undefined;
-                    const fromName = ct?.name || ct?.notify || msg.pushName || name;
-                    const saved = await prisma.incomingMessage.create({
-                      data: {
-                        id: uuid(), businessAccountId: baId, contactId: null,
-                        fromMobile: realMobile, fromName,
-                        messageText: replyText, messageType: 'text',
-                        waMessageId: waId, source: 'baileys',
-                        receivedAt: new Date(Number(msg.messageTimestamp || 0) * 1000 || Date.now()),
-                      },
-                    });
-                    const linkedContact = await prisma.contact.findFirst({
-                      where: { businessAccountId: baId, mobile: { contains: digits.slice(-10) } },
-                    }).catch(() => null);
-                    if (linkedContact) {
-                      await prisma.incomingMessage.update({ where: { id: saved.id }, data: { contactId: linkedContact.id } }).catch(() => {});
-                    }
-                    logger.info(`[${sessionId}] 💬 Status reply saved from ${realMobile}: "${replyText.substring(0, 40)}"`);
-                    try {
-                      const { io } = await import('../../index') as unknown as { io: { emit: (e: string, d: unknown) => void } | null };
-                      if (io) io.emit(`conversation:${baId}`, { type: 'new_message', message: { id: saved.id, type: 'incoming', text: replyText, msgType: 'text', time: saved.receivedAt, isRead: false, source: 'baileys', fromMobile: realMobile, fromName } });
-                    } catch {}
-                  }
-                }
-              } catch (e) { logger.error(`[${sessionId}] Failed to save status reply:`, e); }
-            }
-          }
-          // ─────────────────────────────────────────────────────────────
         }
 
         // ── Also capture regular incoming messages for contact store ────────
@@ -388,6 +343,88 @@ class WhatsAppSessionManager {
                 notify: msg.pushName || senderDigits,
               };
             }
+
+            // ── Save incoming message to DB ───────────────────────
+            if (!msg.key?.fromMe) {
+              const msgContent = msg.message;
+              let msgText = '';
+              let msgType = 'text';
+
+              if (msgContent?.conversation)                   { msgText = msgContent.conversation; msgType = 'text'; }
+              else if (msgContent?.extendedTextMessage?.text) { msgText = msgContent.extendedTextMessage.text; msgType = 'text'; }
+              else if (msgContent?.imageMessage?.caption)     { msgText = msgContent.imageMessage.caption || '[Image]'; msgType = 'image'; }
+              else if (msgContent?.imageMessage)              { msgText = '[Image]'; msgType = 'image'; }
+              else if (msgContent?.videoMessage?.caption)     { msgText = msgContent.videoMessage.caption || '[Video]'; msgType = 'video'; }
+              else if (msgContent?.audioMessage)              { msgText = '[Voice Message]'; msgType = 'audio'; }
+              else if (msgContent?.documentMessage)           { msgText = msgContent.documentMessage.fileName || '[Document]'; msgType = 'document'; }
+
+              if (msgText) {
+                try {
+                  const dbSessions = await prisma.whatsappSession.findMany({
+                    where: { sessionId: sessionId },
+                    select: { businessAccountId: true },
+                  });
+                  const businessAccountId = dbSessions[0]?.businessAccountId;
+                  if (businessAccountId) {
+                    const fromMobile = senderDigits;
+                    const fromName   = msg.pushName || (existingContact as { name?: string } | undefined)?.name || senderDigits;
+                    const waId       = msg.key?.id || null;
+                    const dup        = waId ? await prisma.incomingMessage.findFirst({ where: { waMessageId: waId } }) : null;
+
+                    if (!dup) {
+                      const { v4: uuid } = await import('uuid');
+                      const saved = await prisma.incomingMessage.create({
+                        data: {
+                          id: uuid(),
+                          businessAccountId,
+                          contactId:   null,
+                          fromMobile,
+                          fromName,
+                          messageText: msgText,
+                          messageType: msgType,
+                          waMessageId: waId,
+                          source:      'baileys',
+                          receivedAt:  new Date(Number(msg.messageTimestamp || 0) * 1000 || Date.now()),
+                        },
+                      });
+
+                      // Link contact if exists
+                      const contact = await prisma.contact.findFirst({
+                        where: { businessAccountId, mobile: { contains: fromMobile.slice(-10) } },
+                      }).catch(() => null);
+                      if (contact) {
+                        await prisma.incomingMessage.update({
+                          where: { id: saved.id },
+                          data:  { contactId: contact.id },
+                        }).catch(() => {});
+                      }
+
+                      // Broadcast via socket
+                      const { io } = await import('../../index');
+                      if (io) {
+                        io.emit(`conversation:${businessAccountId}`, {
+                          type: 'new_message',
+                          message: {
+                            id:         saved.id,
+                            type:       'incoming',
+                            text:       msgText,
+                            msgType:    msgType,
+                            time:       saved.receivedAt,
+                            isRead:     false,
+                            source:     'baileys',
+                            fromMobile: fromMobile,
+                            fromName:   fromName,
+                          },
+                        });
+                      }
+                    }
+                  }
+                } catch (e) {
+                  logger.error(`[${sessionId}] Failed to save incoming message:`, e);
+                }
+              }
+            }
+            // ─────────────────────────────────────────────────────
           }
         }
       }
