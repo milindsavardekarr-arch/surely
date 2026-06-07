@@ -12,6 +12,7 @@ import qrcode from 'qrcode';
 import path from 'path';
 import fs from 'fs';
 import { logger } from '../../utils/logger';
+import prisma from '../../config/database';
 import { normalizeMobile } from '../whatsapp/metaWhatsApp.service';
 import pino from 'pino';
 
@@ -330,11 +331,8 @@ class WhatsAppSessionManager {
           });
 
           // ── Save status REPLY as incoming message ─────────────────────
-          // When user replies to our WhatsApp Status, save it as conversation
           if (!msg.key?.fromMe) {
-            const replyText = msg.message?.extendedTextMessage?.text
-              || msg.message?.conversation
-              || extracted.text;
+            const replyText = msg.message?.extendedTextMessage?.text || msg.message?.conversation || extracted.text;
             const realMobile = normalizeMobile(digits);
             if (replyText && realMobile) {
               try {
